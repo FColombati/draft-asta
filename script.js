@@ -151,14 +151,6 @@ function endAuction() {
     const path = isHost ? `winners` : `winners/${teamName}`;
     db.ref(path).push({ playerName: data.name, leader: captain, bid: data.currentBid });
 
-    // Aggiorna lista vincitori lato capitani
-    if (!isHost) {
-      const winnerList = document.getElementById("winnerList");
-      const li = document.createElement("li");
-      li.textContent = `${data.name} → ${captain} (${data.currentBid}💰)`;
-      winnerList.appendChild(li);
-    }
-
     db.ref("currentPlayer").remove();
   });
 }
@@ -171,28 +163,41 @@ resetBtn.addEventListener("click", () => {
   db.ref("winners").remove();
   fetch("players.json").then(res => res.json()).then(data => { allPlayers = data; });
 
-  document.getElementById("winnerList").innerHTML = "";
   document.getElementById("playerName").textContent = 'Premi "Estrai Giocatore"';
   document.getElementById("currentBid").textContent = 0;
   document.getElementById("currentLeader").textContent = "Nessuno";
   document.getElementById("timer").textContent = "--";
 });
 
-// 🔹 Host view: tutti i giocatori divisi per squadra
-if (isHost) {
-  db.ref("winners").on("value", snapshot => {
-    const data = snapshot.val();
-    const winnerList = document.getElementById("winnerList");
-    winnerList.innerHTML = "";
-    for (let team in data) {
-      const teamHeader = document.createElement("h4");
-      teamHeader.textContent = team;
-      winnerList.appendChild(teamHeader);
-      data[team].forEach(player => {
-        const li = document.createElement("li");
-        li.textContent = `${player.playerName} → ${player.leader} (${player.bid}💰)`;
-        winnerList.appendChild(li);
-      });
-    }
-  });
-}
+// 🔹 Aggiornamento tabella vincitori per tutti
+db.ref("winners").on("value", snapshot => {
+  const data = snapshot.val();
+  const tbody = document.querySelector("#winnerTable tbody");
+  tbody.innerHTML = "";
+
+  if (!data) return;
+
+  for (let team in data) {
+    data[team].forEach(player => {
+      const tr = document.createElement("tr");
+
+      const tdTeam = document.createElement("td");
+      tdTeam.textContent = team;
+      tr.appendChild(tdTeam);
+
+      const tdPlayer = document.createElement("td");
+      tdPlayer.textContent = player.playerName;
+      tr.appendChild(tdPlayer);
+
+      const tdLeader = document.createElement("td");
+      tdLeader.textContent = player.leader;
+      tr.appendChild(tdLeader);
+
+      const tdBid = document.createElement("td");
+      tdBid.textContent = player.bid;
+      tr.appendChild(tdBid);
+
+      tbody.appendChild(tr);
+    });
+  }
+});

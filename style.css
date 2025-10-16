@@ -39,3 +39,25 @@ button:hover {
 #hostControls button {
   margin: 5px;
 }
+
+/* Tabella vincitori */
+#winnerTable {
+  margin: 10px auto;
+  width: 80%;
+  border-collapse: collapse;
+}
+
+#winnerTable th, #winnerTable td {
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: center;
+}
+
+#winnerTable th {
+  background: #007bff;
+  color: white;
+}
+
+#winnerTable tbody tr:nth-child(even) {
+  background: #f2f2f2;
+}
