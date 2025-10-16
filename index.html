@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Asta Giocatori</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="login">
+    <h2>Entra come Capitano</h2>
+    <input type="text" id="captainName" placeholder="Nome Capitano">
+    <button id="joinBtn">Entra</button>
+  </div>
+
+  <div id="auction" class="hidden">
+    <h1>Asta Giocatori</h1>
+    <p>Benvenuto, <span id="userDisplay"></span></p>
+
+    <div id="playerBox">
+      <h2 id="playerName">Premi "Estrai Giocatore"</h2>
+      <button id="drawBtn">Estrai Giocatore</button>
+    </div>
+
+    <div id="biddingBox">
+      <h3>Offerta Attuale: <span id="currentBid">0</span> 💰</h3>
+      <h4>Capitano: <span id="currentLeader">Nessuno</span></h4>
+      <input type="number" id="bidAmount" placeholder="Inserisci offerta">
+      <button id="bidBtn">Rilancia</button>
+    </div>
+
+    <div id="timerBox">
+      ⏳ Tempo rimasto: <span id="timer">--</span>
+    </div>
+
+    <div id="winners">
+      <h3>Giocatori Assegnati</h3>
+      <ul id="winnerList"></ul>
+    </div>
+  </div>
+
+  <!-- Firebase compatibile (funziona su GitHub Pages senza build) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
