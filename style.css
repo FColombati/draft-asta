@@ -31,3 +31,11 @@ button {
 button:hover {
   background: #0056b3;
 }
+
+#resetBtn {
+  margin-top: 15px;
+}
+
+#hostControls button {
+  margin: 5px;
+}
