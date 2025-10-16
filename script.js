@@ -13,140 +13,191 @@
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
+// =======================
+// 🔹 VARIABILI GLOBALI
+// =======================
+let captain = "";
+let teamName = "";
+let isHost = false;
+let allPlayers = [];
+let timerInterval;
+
+// =======================
+// 🔹 ELEMENTI DOM
+// =======================
 const login = document.getElementById("login");
 const auction = document.getElementById("auction");
 const joinBtn = document.getElementById("joinBtn");
+const hostControls = document.getElementById("hostControls");
 const drawBtn = document.getElementById("drawBtn");
 const pauseBtn = document.getElementById("pauseBtn");
 const resumeBtn = document.getElementById("resumeBtn");
 const resetBtn = document.getElementById("resetBtn");
-const hostControls = document.getElementById("hostControls");
 const bidBtn = document.getElementById("bidBtn");
 
-let captain = "";
-let isHost = false;
-let teamName = "";
-let allPlayers = [];
-let timerInterval = null;
-
-// Carica giocatori
-fetch("players.json").then(res => res.json()).then(data => { allPlayers = data; });
-
-// 🔹 Login
+// =======================
+// 🔹 LOGIN
+// =======================
 joinBtn.addEventListener("click", () => {
-  let name = document.getElementById("captainName").value.trim();
-  let team = document.getElementById("teamName").value.trim();
+  const name = document.getElementById("captainName").value.trim();
+  const team = document.getElementById("teamName").value.trim();
 
   if (name === "") return alert("Inserisci il tuo nome!");
 
+  // Host login
   if (name.toLowerCase() === "host") {
-    let pwd = prompt("Inserisci la password dell’host:");
+    const pwd = prompt("Inserisci la password dell’host:");
     if (pwd !== "pred-italia-circus-host") return alert("Password errata!");
     captain = "HOST";
     isHost = true;
   } else {
     captain = name;
     isHost = false;
+    if (team === "") return alert("Inserisci il nome della tua squadra!");
+    teamName = team;
   }
-
-  if (!isHost && team === "") return alert("Inserisci il nome della squadra!");
-  teamName = team;
 
   login.classList.add("hidden");
   auction.classList.remove("hidden");
+
   document.getElementById("userDisplay").textContent = captain;
   document.getElementById("roleDisplay").textContent = isHost ? "Host" : `Capitano - ${teamName}`;
 
-  if (isHost) {
-    hostControls.classList.remove("hidden");
-    document.getElementById("biddingBox").style.display = "none"; // ❌ nasconde sezione rilanci
-  } else {
-    hostControls.classList.add("hidden");
-  }
+  if (isHost) hostControls.classList.remove("hidden");
+  else hostControls.classList.add("hidden");
+
+  // L’host non deve vedere i controlli di rilancio
+  if (isHost) document.getElementById("biddingBox").style.display = "none";
 });
 
-// 🔹 Estrai giocatore
+// =======================
+// 🔹 CARICA LISTA GIOCATORI
+// =======================
+fetch("players.json")
+  .then(res => res.json())
+  .then(data => { allPlayers = data; });
+
+// =======================
+// 🔹 HOST: ESTRAZIONE GIOCATORE
+// =======================
 drawBtn.addEventListener("click", () => {
-  if (allPlayers.length === 0) return alert("Lista vuota!");
-  const idx = Math.floor(Math.random() * allPlayers.length);
-  const player = allPlayers.splice(idx, 1)[0];
+  if (!isHost) return;
+
+  if (allPlayers.length === 0) return alert("Tutti i giocatori sono stati estratti!");
+  const randomIndex = Math.floor(Math.random() * allPlayers.length);
+  const selected = allPlayers.splice(randomIndex, 1)[0];
 
   db.ref("currentPlayer").set({
-    name: player,
+    name: selected.name,
     currentBid: 0,
-    leader: "Nessuno",
+    currentLeader: "Nessuno",
     isActive: true
   });
 
+  // Reset timer
   db.ref("timer").set({ seconds: 30, isRunning: true });
 });
 
-// 🔹 Timer
+// =======================
+// 🔹 TIMER SINCRONIZZATO
+// =======================
 db.ref("timer").on("value", snapshot => {
-  const data = snapshot.val();
-  if (!data) return;
-  document.getElementById("timer").textContent = data.seconds;
+  const timer = snapshot.val();
+  if (!timer) return;
+
+  document.getElementById("timer").textContent = timer.seconds;
 
   clearInterval(timerInterval);
-  if (data.isRunning) startTimer(data.seconds);
+
+  if (timer.isRunning) {
+    timerInterval = setInterval(() => {
+      db.ref("timer").once("value").then(snap => {
+        let t = snap.val();
+        if (t && t.isRunning && t.seconds > 0) {
+          t.seconds--;
+          db.ref("timer").set(t);
+        } else if (t && t.seconds <= 0) {
+          clearInterval(timerInterval);
+          endAuction();
+        }
+      });
+    }, 1000);
+  }
 });
 
-function startTimer(seconds) {
-  let t = seconds;
-  timerInterval = setInterval(() => {
-    t--;
-    db.ref("timer").update({ seconds: t });
-    if (t <= 0) {
-      clearInterval(timerInterval);
-      endAuction();
-      db.ref("timer").update({ isRunning: false });
-    }
-  }, 1000);
+pauseBtn.addEventListener("click", () => {
+  if (isHost) db.ref("timer/isRunning").set(false);
+});
+resumeBtn.addEventListener("click", () => {
+  if (isHost) db.ref("timer/isRunning").set(true);
+});
+
+// =======================
+// 🔹 VISUALIZZAZIONE GIOCATORE ATTUALE
+// =======================
+db.ref("currentPlayer").on("value", snapshot => {
+  const data = snapshot.val();
+  const playerDisplay = document.getElementById("playerDisplay");
+  const currentBid = document.getElementById("currentBid");
+  const currentLeader = document.getElementById("currentLeader");
+
+  if (data && data.name) {
+    playerDisplay.textContent = data.name;
+    currentBid.textContent = data.currentBid;
+    currentLeader.textContent = data.currentLeader;
+  } else {
+    playerDisplay.textContent = "Nessun giocatore in asta";
+    currentBid.textContent = 0;
+    currentLeader.textContent = "Nessuno";
+  }
+});
+
+// =======================
+// 🔹 RILANCI (solo capitani)
+// =======================
+function makeBid(amount) {
+  db.ref("currentPlayer").once("value").then(snapshot => {
+    const data = snapshot.val();
+    if (!data || !data.isActive) return;
+    if (amount > data.currentBid) {
+      db.ref("currentPlayer").update({
+        currentBid: amount,
+        currentLeader: captain
+      });
+    } else alert("Offerta troppo bassa!");
+  });
 }
 
-// 🔹 Pause / Resume
-pauseBtn.addEventListener("click", () => db.ref("timer").update({ isRunning: false }));
-resumeBtn.addEventListener("click", () => {
-  db.ref("timer").once("value").then(s => {
-    const d = s.val();
-    if (d && d.seconds > 0) db.ref("timer").update({ isRunning: true });
-  });
-});
-
-// 🔹 Rilanci solo per capitani
 if (!isHost) {
-  bidBtn.addEventListener("click", () => makeBid(parseInt(document.getElementById("bidAmount").value)));
+  bidBtn.addEventListener("click", () => {
+    const val = parseInt(document.getElementById("bidAmount").value);
+    if (!isNaN(val)) makeBid(val);
+  });
+
   document.querySelectorAll(".bidInc").forEach(btn => {
     btn.addEventListener("click", () => {
-      const increment = parseInt(btn.dataset.value);
-      db.ref("currentPlayer").once("value").then(s => {
-        const data = s.val();
-        if (!data || !data.isActive) return;
-        makeBid(data.currentBid + increment);
+      const inc = parseInt(btn.dataset.value);
+      db.ref("currentPlayer").once("value").then(snapshot => {
+        const data = snapshot.val();
+        if (data && data.isActive) makeBid(data.currentBid + inc);
       });
     });
   });
 }
 
-function makeBid(bid) {
-  if (isNaN(bid)) return alert("Offerta non valida");
-  db.ref("currentPlayer").once("value").then(s => {
-    const data = s.val();
-    if (!data || !data.isActive) return;
-    if (bid > data.currentBid) db.ref("currentPlayer").update({ currentBid: bid, leader: captain });
-  });
-}
-
-// 🔹 Fine asta
+// =======================
+// 🔹 FINE ASTA PER GIOCATORE
+// =======================
 function endAuction() {
-  db.ref("currentPlayer").once("value").then(s => {
-    const data = s.val();
+  db.ref("currentPlayer").once("value").then(snapshot => {
+    const data = snapshot.val();
     if (!data) return;
 
-    const path = `winners/${data.leader}`;
+    const winnerTeam = teamName || data.currentLeader; // fallback se host chiude
+    const path = `winners/${winnerTeam}`;
     db.ref(path).push({
       playerName: data.name,
-      leader: data.leader,
+      leader: data.currentLeader,
       bid: data.currentBid
     });
 
@@ -154,16 +205,27 @@ function endAuction() {
   });
 }
 
-// 🔹 Reset
+// =======================
+// 🔹 RESET ASTA (solo host)
+// =======================
 resetBtn.addEventListener("click", () => {
+  if (!isHost) return;
   if (!confirm("Sei sicuro di resettare l'asta?")) return;
+
   db.ref("currentPlayer").remove();
   db.ref("timer").set({ seconds: 30, isRunning: false });
   db.ref("winners").remove();
-  fetch("players.json").then(r => r.json()).then(data => { allPlayers = data; });
+  fetch("players.json").then(res => res.json()).then(data => { allPlayers = data; });
+
+  document.getElementById("playerDisplay").textContent = "Attesa estrazione giocatore";
+  document.getElementById("currentBid").textContent = 0;
+  document.getElementById("currentLeader").textContent = "Nessuno";
+  document.getElementById("timer").textContent = "--";
 });
 
-// 🔹 Aggiornamento tabella per squadra
+// =======================
+// 🔹 TABELLA VINCITORI DIVISA PER SQUADRA
+// =======================
 db.ref("winners").on("value", snapshot => {
   const data = snapshot.val();
   const container = document.getElementById("winnerTables");
@@ -173,24 +235,35 @@ db.ref("winners").on("value", snapshot => {
 
   for (let team in data) {
     const teamDiv = document.createElement("div");
-    teamDiv.className = "team-table";
+    teamDiv.classList.add("team-table");
+
     const title = document.createElement("h4");
     title.textContent = team;
     teamDiv.appendChild(title);
 
     const table = document.createElement("table");
-    table.innerHTML = `
-      <thead><tr><th>Giocatore</th><th>Capitano</th><th>Offerta 💰</th></tr></thead>
-      <tbody></tbody>
+    const thead = document.createElement("thead");
+    thead.innerHTML = `
+      <tr>
+        <th>Giocatore</th>
+        <th>Capitano</th>
+        <th>Offerta 💰</th>
+      </tr>
     `;
-    const tbody = table.querySelector("tbody");
+    table.appendChild(thead);
 
+    const tbody = document.createElement("tbody");
     Object.values(data[team]).forEach(player => {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${player.playerName}</td><td>${player.leader}</td><td>${player.bid}</td>`;
+      tr.innerHTML = `
+        <td>${player.playerName}</td>
+        <td>${player.leader}</td>
+        <td>${player.bid}</td>
+      `;
       tbody.appendChild(tr);
     });
 
+    table.appendChild(tbody);
     teamDiv.appendChild(table);
     container.appendChild(teamDiv);
   }

@@ -17,14 +17,17 @@
     <h1>Asta Giocatori</h1>
     <p>Benvenuto, <span id="userDisplay"></span> (<span id="roleDisplay"></span>)</p>
 
-    <div id="playerBox">
-      <h2 id="playerName">Attesa estrazione giocatore</h2>
-      <div id="hostControls" class="hidden">
-        <button id="drawBtn">Estrai Giocatore</button>
-        <button id="pauseBtn">Pausa</button>
-        <button id="resumeBtn">Riprendi</button>
-        <button id="resetBtn" style="background:#dc3545">Reset Asta</button>
-      </div>
+    <div id="hostControls" class="hidden">
+      <button id="drawBtn">Estrai Giocatore</button>
+      <button id="pauseBtn">Pausa</button>
+      <button id="resumeBtn">Riprendi</button>
+      <button id="resetBtn" style="background:#dc3545">Reset Asta</button>
+    </div>
+
+    <!-- 🔹 Nuova sezione: Giocatore Attuale -->
+    <div id="currentPlayerBox">
+      <h2>Giocatore in Asta</h2>
+      <div id="playerDisplay">Nessun giocatore in asta</div>
     </div>
 
     <div id="biddingBox">
