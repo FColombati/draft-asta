@@ -9,6 +9,7 @@
     appId: "1:266437545631:web:504925f43ea94e2d475caa"
   };
 
+
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
@@ -19,39 +20,53 @@ const drawBtn = document.getElementById("drawBtn");
 const pauseBtn = document.getElementById("pauseBtn");
 const resumeBtn = document.getElementById("resumeBtn");
 const resetBtn = document.getElementById("resetBtn");
-const bidBtn = document.getElementById("bidBtn");
 const hostControls = document.getElementById("hostControls");
+const bidBtn = document.getElementById("bidBtn");
 
 let captain = "";
 let isHost = false;
+let teamName = "";
 let allPlayers = [];
 let timerInterval = null;
 
 // Carica giocatori
-fetch("players.json")
-  .then(res => res.json())
-  .then(data => { allPlayers = data; });
+fetch("players.json").then(res => res.json()).then(data => { allPlayers = data; });
 
 // 🔹 Login
 joinBtn.addEventListener("click", () => {
-  captain = document.getElementById("captainName").value.trim();
-  isHost = document.getElementById("isHost").checked;
+  let name = document.getElementById("captainName").value.trim();
+  let team = document.getElementById("teamName").value.trim();
 
-  if (captain === "") return alert("Inserisci un nome!");
+  if (name === "") return alert("Inserisci il tuo nome!");
+
+  // Controllo host tramite password
+  if (name.toLowerCase() === "host") {
+    let pwd = prompt("Inserisci la password dell’host:");
+    if (pwd !== "pred-italia-circus-host") return alert("Password errata!");
+    captain = "HOST";
+    isHost = true;
+  } else {
+    captain = name;
+    isHost = false;
+  }
+
+  if (!isHost && team === "") return alert("Inserisci il nome della squadra!");
+  teamName = team;
 
   login.classList.add("hidden");
   auction.classList.remove("hidden");
   document.getElementById("userDisplay").textContent = captain;
-  document.getElementById("roleDisplay").textContent = isHost ? "Host" : "Capitano";
+  document.getElementById("roleDisplay").textContent = isHost ? "Host" : `Capitano - ${teamName}`;
 
   if (isHost) hostControls.classList.remove("hidden");
+  else hostControls.classList.add("hidden");
 });
 
-// 🔹 Estrai giocatore
+// 🔹 Estrai giocatore (solo host)
 drawBtn.addEventListener("click", () => {
   if (allPlayers.length === 0) return alert("Lista vuota!");
-  const randomIndex = Math.floor(Math.random() * allPlayers.length);
-  const player = allPlayers.splice(randomIndex, 1)[0];
+  const idx = Math.floor(Math.random() * allPlayers.length);
+  const player = allPlayers.splice(idx, 1)[0];
 
   db.ref("currentPlayer").set({
     name: player,
@@ -60,10 +75,7 @@ drawBtn.addEventListener("click", () => {
     isActive: true
   });
 
-  db.ref("timer").set({
-    seconds: 30,
-    isRunning: true
-  });
+  db.ref("timer").set({ seconds: 30, isRunning: true });
 });
 
 // 🔹 Timer sincronizzato
@@ -99,55 +111,53 @@ resumeBtn.addEventListener("click", () => {
   db.ref("timer").once("value").then(snapshot => {
     const data = snapshot.val();
     if (!data) return;
-    if (data.seconds > 0) {
-      db.ref("timer").update({ isRunning: true });
-    }
+    if (data.seconds > 0) db.ref("timer").update({ isRunning: true });
   });
 });
 
-// 🔹 Rilanci
-bidBtn.addEventListener("click", () => makeBid(parseInt(document.getElementById("bidAmount").value)));
-
-document.querySelectorAll(".bidInc").forEach(btn => {
-  btn.addEventListener("click", () => {
-    const increment = parseInt(btn.dataset.value);
-    db.ref("currentPlayer").once("value").then(snapshot => {
-      const data = snapshot.val();
-      if (!data || !data.isActive) return;
-      makeBid(data.currentBid + increment);
+// 🔹 Rilanci solo per capitani
+if (!isHost) {
+  bidBtn.addEventListener("click", () => makeBid(parseInt(document.getElementById("bidAmount").value)));
+  document.querySelectorAll(".bidInc").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const increment = parseInt(btn.dataset.value);
+      db.ref("currentPlayer").once("value").then(snapshot => {
+        const data = snapshot.val();
+        if (!data || !data.isActive) return;
+        makeBid(data.currentBid + increment);
+      });
     });
   });
-});
+} else {
+  document.getElementById("biddingBox").style.display = "none";
+}
 
 function makeBid(bid) {
   if (isNaN(bid)) return alert("Offerta non valida");
   db.ref("currentPlayer").once("value").then(snapshot => {
     const data = snapshot.val();
     if (!data || !data.isActive) return;
-    if (bid > data.currentBid) {
-      db.ref("currentPlayer").update({ currentBid: bid, leader: captain });
-    } else {
-      alert("Offerta troppo bassa!");
-    }
+    if (bid > data.currentBid) db.ref("currentPlayer").update({ currentBid: bid, leader: captain });
+    else alert("Offerta troppo bassa!");
   });
 }
 
-// 🔹 Fine asta per il giocatore
+// 🔹 Fine asta
 function endAuction() {
   db.ref("currentPlayer").once("value").then(snapshot => {
     const data = snapshot.val();
     if (!data) return;
 
-    const winnerList = document.getElementById("winnerList");
-    const li = document.createElement("li");
-    li.textContent = `${data.name} → ${data.leader} (${data.currentBid}💰)`;
-    winnerList.appendChild(li);
+    const path = isHost ? `winners` : `winners/${teamName}`;
+    db.ref(path).push({ playerName: data.name, leader: captain, bid: data.currentBid });
 
-    db.ref("winners").push({
-      playerName: data.name,
-      leader: data.leader,
-      bid: data.currentBid
-    });
+    // Aggiorna lista vincitori lato capitani
+    if (!isHost) {
+      const winnerList = document.getElementById("winnerList");
+      const li = document.createElement("li");
+      li.textContent = `${data.name} → ${captain} (${data.currentBid}💰)`;
+      winnerList.appendChild(li);
+    }
 
     db.ref("currentPlayer").remove();
   });
@@ -159,12 +169,30 @@ resetBtn.addEventListener("click", () => {
   db.ref("currentPlayer").remove();
   db.ref("timer").set({ seconds: 30, isRunning: false });
   db.ref("winners").remove();
-  fetch("players.json")
-    .then(res => res.json())
-    .then(data => { allPlayers = data; });
+  fetch("players.json").then(res => res.json()).then(data => { allPlayers = data; });
+
   document.getElementById("winnerList").innerHTML = "";
   document.getElementById("playerName").textContent = 'Premi "Estrai Giocatore"';
   document.getElementById("currentBid").textContent = 0;
   document.getElementById("currentLeader").textContent = "Nessuno";
   document.getElementById("timer").textContent = "--";
 });
+
+// 🔹 Host view: tutti i giocatori divisi per squadra
+if (isHost) {
+  db.ref("winners").on("value", snapshot => {
+    const data = snapshot.val();
+    const winnerList = document.getElementById("winnerList");
+    winnerList.innerHTML = "";
+    for (let team in data) {
+      const teamHeader = document.createElement("h4");
+      teamHeader.textContent = team;
+      winnerList.appendChild(teamHeader);
+      data[team].forEach(player => {
+        const li = document.createElement("li");
+        li.textContent = `${player.playerName} → ${player.leader} (${player.bid}💰)`;
+        winnerList.appendChild(li);
+      });
+    }
+  });
+}
