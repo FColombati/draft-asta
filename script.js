@@ -28,6 +28,8 @@ fetch("player.json")
   .then(res => res.json())
   .then(data => { allPlayers = data; });
 
+  console.log(allPlayers);
+
 joinBtn.addEventListener("click", () => {
   captain = document.getElementById("captainName").value.trim();
   if (captain === "") return alert("Inserisci un nome!");
