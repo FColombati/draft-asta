@@ -24,7 +24,7 @@ let timerInterval = null;
 let allPlayers = [];
 
 // Carica giocatori
-fetch("players.json")
+fetch("player.json")
   .then(res => res.json())
   .then(data => { allPlayers = data; });
 
