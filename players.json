@@ -1,10 +1,10 @@
 [
-  "Lionel Messi",
-  "Cristiano Ronaldo",
-  "Kylian Mbappé",
-  "Erling Haaland",
-  "Kevin De Bruyne",
-  "Luka Modrić",
-  "Harry Kane",
-  "Neymar Jr"
+  { "name": "Lionel Messi", "role": "attaccante" },
+  { "name": "Cristiano Ronaldo", "role": "attaccante" },
+  { "name": "Kylian Mbappé", "role": "attaccante" },
+  { "name": "Erling Haaland", "role": "attaccante" },
+  { "name": "Kevin De Bruyne", "role": "centrocampista" },
+  { "name": "Luka Modrić", "role": "centrocampista" },
+  { "name": "Harry Kane", "role": "attaccante" },
+  { "name": "Neymar Jr", "role": "attaccante" }
 ]

@@ -66,11 +66,11 @@ document.getElementById("joinBtn").addEventListener("click", () => {
     document.getElementById("biddingBox").style.display = "none";
   }
 
-  // 🔹 Carica giocatori da JSON e poi abilita il draw
+  // 🔹 Carica giocatori da JSON
   fetch("players.json")
     .then(res => res.json())
     .then(data => {
-      allPlayers = data.map(p => p.name || p); // assicuriamoci che siano stringhe
+      allPlayers = data; // array di oggetti {name, role}
       drawBtn.disabled = false; // ora il bottone è abilitato
     })
     .catch(err => alert("Errore nel caricamento dei giocatori: " + err));
@@ -98,7 +98,7 @@ drawBtn.addEventListener("click", () => {
 
     db.ref("drawnPlayers").once("value").then(snap => {
       const drawn = snap.val() || [];
-      const remaining = allPlayers.filter(p => !drawn.includes(p));
+      const remaining = allPlayers.filter(p => !drawn.map(dp => dp.name).includes(p.name));
 
       if (remaining.length === 0) {
         alert("Tutti i giocatori sono stati estratti!");
@@ -108,16 +108,20 @@ drawBtn.addEventListener("click", () => {
       const randomIndex = Math.floor(Math.random() * remaining.length);
       const selectedPlayer = remaining[randomIndex];
 
-      // 🔹 Controllo aggiuntivo
-      if (!selectedPlayer) return alert("Errore: nessun giocatore disponibile!");
+      if (!selectedPlayer || !selectedPlayer.name) {
+        alert("Errore: giocatore non valido!");
+        return;
+      }
 
       // Aggiorna Firebase
       db.ref("currentPlayer").set({
-        name: selectedPlayer,
+        name: selectedPlayer.name,
+        role: selectedPlayer.role,
         currentBid: 0,
         currentLeader: "Nessuno",
         isActive: true
       });
+
       db.ref("drawnPlayers").set([...drawn, selectedPlayer]);
       db.ref("timer").set(30); // timer iniziale
     });
@@ -138,8 +142,7 @@ db.ref("timer").on("value", snap => {
       db.ref("timer").once("value").then(snap => {
         let time = snap.val();
         if (time > 0) {
-          time--;
-          db.ref("timer").set(time);
+          db.ref("timer").set(time - 1);
         } else {
           clearInterval(timerInterval);
           endAuction();
@@ -196,7 +199,7 @@ document.getElementById("resetBtn").addEventListener("click", () => {
 
   fetch("players.json")
     .then(res => res.json())
-    .then(data => { allPlayers = data.map(p => p.name || p); });
+    .then(data => { allPlayers = data; });
 
   playerDisplay.textContent = "Attesa estrazione giocatore";
   currentBidEl.textContent = 0;
@@ -214,6 +217,7 @@ function endAuction() {
     const team = teamName || data.currentLeader;
     db.ref(`winners/${team}`).push({
       playerName: data.name,
+      role: data.role,
       leader: data.currentLeader,
       bid: data.currentBid
     });
@@ -226,11 +230,11 @@ function endAuction() {
 // =========================
 function subscribeToAuction() {
   db.ref("currentPlayer").on("value", snap => {
-    const data = snap.val();
-    if (data && data.name) {
-      playerDisplay.textContent = data.name;
-      currentBidEl.textContent = data.currentBid;
-      currentLeaderEl.textContent = data.currentLeader;
+    const player = snap.val();
+    if (player && player.name) {
+      playerDisplay.textContent = `${player.name} (${player.role})`;
+      currentBidEl.textContent = player.currentBid;
+      currentLeaderEl.textContent = player.currentLeader;
     } else {
       playerDisplay.textContent = "Attesa estrazione giocatore";
       currentBidEl.textContent = 0;
@@ -250,13 +254,13 @@ function subscribeToAuction() {
 
       const table = document.createElement("table");
       table.innerHTML = `
-        <thead><tr><th>Giocatore</th><th>Capitano</th><th>Offerta 💰</th></tr></thead>
+        <thead><tr><th>Giocatore</th><th>Ruolo</th><th>Capitano</th><th>Offerta 💰</th></tr></thead>
         <tbody></tbody>
       `;
       const tbody = table.querySelector("tbody");
       Object.values(data[team]).forEach(p => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${p.playerName}</td><td>${p.leader}</td><td>${p.bid}</td>`;
+        tr.innerHTML = `<td>${p.playerName}</td><td>${p.role}</td><td>${p.leader}</td><td>${p.bid}</td>`;
         tbody.appendChild(tr);
       });
       teamDiv.appendChild(table);
