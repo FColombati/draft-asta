@@ -15,7 +15,7 @@ body {
   padding: 15px;
   border-radius: 10px;
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-  width: 300px;
+  width: 320px;
 }
 
 button {
@@ -41,23 +41,41 @@ button:hover {
 }
 
 /* Tabella vincitori */
-#winnerTable {
-  margin: 10px auto;
-  width: 80%;
+#winnerTables {
+  width: 90%;
+  margin: 20px auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+}
+
+.team-table {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  padding: 10px;
+  width: 300px;
+}
+
+.team-table h4 {
+  background: #007bff;
+  color: white;
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.team-table table {
+  width: 100%;
   border-collapse: collapse;
 }
 
-#winnerTable th, #winnerTable td {
+.team-table th, .team-table td {
   border: 1px solid #ccc;
-  padding: 8px;
+  padding: 6px;
   text-align: center;
 }
 
-#winnerTable th {
-  background: #007bff;
-  color: white;
-}
-
-#winnerTable tbody tr:nth-child(even) {
-  background: #f2f2f2;
+.team-table th {
+  background: #f0f0f0;
 }

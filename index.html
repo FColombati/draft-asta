@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8">
-  <title>Asta Giocatori - Host & Capitani</title>
+  <title>Asta Giocatori - Pred Italia Circus</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -18,7 +18,7 @@
     <p>Benvenuto, <span id="userDisplay"></span> (<span id="roleDisplay"></span>)</p>
 
     <div id="playerBox">
-      <h2 id="playerName">Premi "Estrai Giocatore"</h2>
+      <h2 id="playerName">Attesa estrazione giocatore</h2>
       <div id="hostControls" class="hidden">
         <button id="drawBtn">Estrai Giocatore</button>
         <button id="pauseBtn">Pausa</button>
@@ -45,23 +45,11 @@
 
     <div id="winners">
       <h3>Giocatori Assegnati per Squadra</h3>
-      <table id="winnerTable">
-        <thead>
-          <tr>
-            <th>Squadra</th>
-            <th>Giocatore</th>
-            <th>Capitano</th>
-            <th>Offerta 💰</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- I giocatori saranno inseriti qui via JS -->
-        </tbody>
-      </table>
+      <div id="winnerTables"></div>
     </div>
   </div>
 
-  <!-- Firebase compatibile -->
+  <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
   <script src="script.js"></script>

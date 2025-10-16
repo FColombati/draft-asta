@@ -39,7 +39,6 @@ joinBtn.addEventListener("click", () => {
 
   if (name === "") return alert("Inserisci il tuo nome!");
 
-  // Controllo host tramite password
   if (name.toLowerCase() === "host") {
     let pwd = prompt("Inserisci la password dell’host:");
     if (pwd !== "pred-italia-circus-host") return alert("Password errata!");
@@ -58,11 +57,15 @@ joinBtn.addEventListener("click", () => {
   document.getElementById("userDisplay").textContent = captain;
   document.getElementById("roleDisplay").textContent = isHost ? "Host" : `Capitano - ${teamName}`;
 
-  if (isHost) hostControls.classList.remove("hidden");
-  else hostControls.classList.add("hidden");
+  if (isHost) {
+    hostControls.classList.remove("hidden");
+    document.getElementById("biddingBox").style.display = "none"; // ❌ nasconde sezione rilanci
+  } else {
+    hostControls.classList.add("hidden");
+  }
 });
 
-// 🔹 Estrai giocatore (solo host)
+// 🔹 Estrai giocatore
 drawBtn.addEventListener("click", () => {
   if (allPlayers.length === 0) return alert("Lista vuota!");
   const idx = Math.floor(Math.random() * allPlayers.length);
@@ -78,7 +81,7 @@ drawBtn.addEventListener("click", () => {
   db.ref("timer").set({ seconds: 30, isRunning: true });
 });
 
-// 🔹 Timer sincronizzato
+// 🔹 Timer
 db.ref("timer").on("value", snapshot => {
   const data = snapshot.val();
   if (!data) return;
@@ -101,17 +104,12 @@ function startTimer(seconds) {
   }, 1000);
 }
 
-// 🔹 Pause / Resume (host)
-pauseBtn.addEventListener("click", () => {
-  db.ref("timer").update({ isRunning: false });
-  clearInterval(timerInterval);
-});
-
+// 🔹 Pause / Resume
+pauseBtn.addEventListener("click", () => db.ref("timer").update({ isRunning: false }));
 resumeBtn.addEventListener("click", () => {
-  db.ref("timer").once("value").then(snapshot => {
-    const data = snapshot.val();
-    if (!data) return;
-    if (data.seconds > 0) db.ref("timer").update({ isRunning: true });
+  db.ref("timer").once("value").then(s => {
+    const d = s.val();
+    if (d && d.seconds > 0) db.ref("timer").update({ isRunning: true });
   });
 });
 
@@ -121,83 +119,79 @@ if (!isHost) {
   document.querySelectorAll(".bidInc").forEach(btn => {
     btn.addEventListener("click", () => {
       const increment = parseInt(btn.dataset.value);
-      db.ref("currentPlayer").once("value").then(snapshot => {
-        const data = snapshot.val();
+      db.ref("currentPlayer").once("value").then(s => {
+        const data = s.val();
         if (!data || !data.isActive) return;
         makeBid(data.currentBid + increment);
       });
     });
   });
-} else {
-  document.getElementById("biddingBox").style.display = "none";
 }
 
 function makeBid(bid) {
   if (isNaN(bid)) return alert("Offerta non valida");
-  db.ref("currentPlayer").once("value").then(snapshot => {
-    const data = snapshot.val();
+  db.ref("currentPlayer").once("value").then(s => {
+    const data = s.val();
     if (!data || !data.isActive) return;
     if (bid > data.currentBid) db.ref("currentPlayer").update({ currentBid: bid, leader: captain });
-    else alert("Offerta troppo bassa!");
   });
 }
 
 // 🔹 Fine asta
 function endAuction() {
-  db.ref("currentPlayer").once("value").then(snapshot => {
-    const data = snapshot.val();
+  db.ref("currentPlayer").once("value").then(s => {
+    const data = s.val();
     if (!data) return;
 
-    const path = isHost ? `winners` : `winners/${teamName}`;
-    db.ref(path).push({ playerName: data.name, leader: captain, bid: data.currentBid });
+    const path = `winners/${data.leader}`;
+    db.ref(path).push({
+      playerName: data.name,
+      leader: data.leader,
+      bid: data.currentBid
+    });
 
     db.ref("currentPlayer").remove();
   });
 }
 
-// 🔹 Reset asta (host)
+// 🔹 Reset
 resetBtn.addEventListener("click", () => {
   if (!confirm("Sei sicuro di resettare l'asta?")) return;
   db.ref("currentPlayer").remove();
   db.ref("timer").set({ seconds: 30, isRunning: false });
   db.ref("winners").remove();
-  fetch("players.json").then(res => res.json()).then(data => { allPlayers = data; });
-
-  document.getElementById("playerName").textContent = 'Premi "Estrai Giocatore"';
-  document.getElementById("currentBid").textContent = 0;
-  document.getElementById("currentLeader").textContent = "Nessuno";
-  document.getElementById("timer").textContent = "--";
+  fetch("players.json").then(r => r.json()).then(data => { allPlayers = data; });
 });
 
-// 🔹 Aggiornamento tabella vincitori per tutti
+// 🔹 Aggiornamento tabella per squadra
 db.ref("winners").on("value", snapshot => {
   const data = snapshot.val();
-  const tbody = document.querySelector("#winnerTable tbody");
-  tbody.innerHTML = "";
+  const container = document.getElementById("winnerTables");
+  container.innerHTML = "";
 
   if (!data) return;
 
   for (let team in data) {
-    data[team].forEach(player => {
+    const teamDiv = document.createElement("div");
+    teamDiv.className = "team-table";
+    const title = document.createElement("h4");
+    title.textContent = team;
+    teamDiv.appendChild(title);
+
+    const table = document.createElement("table");
+    table.innerHTML = `
+      <thead><tr><th>Giocatore</th><th>Capitano</th><th>Offerta 💰</th></tr></thead>
+      <tbody></tbody>
+    `;
+    const tbody = table.querySelector("tbody");
+
+    Object.values(data[team]).forEach(player => {
       const tr = document.createElement("tr");
-
-      const tdTeam = document.createElement("td");
-      tdTeam.textContent = team;
-      tr.appendChild(tdTeam);
-
-      const tdPlayer = document.createElement("td");
-      tdPlayer.textContent = player.playerName;
-      tr.appendChild(tdPlayer);
-
-      const tdLeader = document.createElement("td");
-      tdLeader.textContent = player.leader;
-      tr.appendChild(tdLeader);
-
-      const tdBid = document.createElement("td");
-      tdBid.textContent = player.bid;
-      tr.appendChild(tdBid);
-
+      tr.innerHTML = `<td>${player.playerName}</td><td>${player.leader}</td><td>${player.bid}</td>`;
       tbody.appendChild(tr);
     });
+
+    teamDiv.appendChild(table);
+    container.appendChild(teamDiv);
   }
 });
