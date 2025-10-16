@@ -61,9 +61,11 @@ document.getElementById("joinBtn").addEventListener("click", () => {
   document.getElementById("userDisplay").textContent = captain;
   document.getElementById("roleDisplay").textContent = isHost ? "Host" : `Capitano - ${teamName}`;
 
+  // Mostra i controlli dell’host e disabilita bottoni
   if (isHost) {
     hostControls.classList.remove("hidden");
-    document.getElementById("biddingBox").style.display = "none";
+    document.getElementById("biddingBox").style.display = "block"; // visibile
+    document.querySelectorAll(".bidInc, #bidBtn").forEach(btn => btn.disabled = true);
   }
 
   // 🔹 Carica giocatori da JSON
@@ -119,6 +121,7 @@ drawBtn.addEventListener("click", () => {
         role: selectedPlayer.role,
         currentBid: 0,
         currentLeader: "Nessuno",
+        currentLeaderTeam: null,
         isActive: true
       });
 
@@ -179,7 +182,8 @@ function makeBid(amount) {
     if (amount > data.currentBid) {
       db.ref("currentPlayer").update({
         currentBid: amount,
-        currentLeader: captain
+        currentLeader: captain,
+        currentLeaderTeam: teamName
       });
     } else alert("Offerta troppo bassa!");
   });
@@ -214,13 +218,24 @@ function endAuction() {
   db.ref("currentPlayer").once("value").then(snap => {
     const data = snap.val();
     if (!data) return;
-    const team = teamName || data.currentLeader;
-    db.ref(`winners/${team}`).push({
+
+    // Se non c'è alcuna offerta
+    if (!data.currentLeader || data.currentBid === 0) {
+      alert(`Nessuna offerta per ${data.name}. Giocatore scartato.`);
+      db.ref("currentPlayer").remove();
+      return;
+    }
+
+    // Assegna al team vincente
+    const winningTeam = data.currentLeaderTeam;
+
+    db.ref(`winners/${winningTeam}`).push({
       playerName: data.name,
       role: data.role,
       leader: data.currentLeader,
       bid: data.currentBid
     });
+
     db.ref("currentPlayer").remove();
   });
 }
