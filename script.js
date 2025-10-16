@@ -29,6 +29,11 @@ const login = document.getElementById("login");
 const auction = document.getElementById("auction");
 const hostControls = document.getElementById("hostControls");
 const drawBtn = document.getElementById("drawBtn");
+const playerDisplay = document.getElementById("playerDisplay");
+const currentBidEl = document.getElementById("currentBid");
+const currentLeaderEl = document.getElementById("currentLeader");
+const timerEl = document.getElementById("timer");
+const winnerTables = document.getElementById("winnerTables");
 
 // =========================
 // LOGIN
@@ -61,12 +66,14 @@ document.getElementById("joinBtn").addEventListener("click", () => {
     document.getElementById("biddingBox").style.display = "none";
   }
 
-  // Carica i giocatori dal JSON
+  // 🔹 Carica giocatori da JSON e poi abilita il draw
   fetch("players.json")
     .then(res => res.json())
     .then(data => {
-      allPlayers = data;
-    });
+      allPlayers = data.map(p => p.name || p); // assicuriamoci che siano stringhe
+      drawBtn.disabled = false; // ora il bottone è abilitato
+    })
+    .catch(err => alert("Errore nel caricamento dei giocatori: " + err));
 
   subscribeToAuction();
 });
@@ -77,6 +84,11 @@ document.getElementById("joinBtn").addEventListener("click", () => {
 drawBtn.addEventListener("click", () => {
   if (!isHost) return;
 
+  if (!allPlayers.length) {
+    alert("Lista giocatori non ancora caricata!");
+    return;
+  }
+
   db.ref("currentPlayer").once("value").then(snap => {
     const current = snap.val();
     if (current && current.name) {
@@ -84,11 +96,10 @@ drawBtn.addEventListener("click", () => {
       return;
     }
 
-    // Lista già estratti
     db.ref("drawnPlayers").once("value").then(snap => {
       const drawn = snap.val() || [];
-
       const remaining = allPlayers.filter(p => !drawn.includes(p));
+
       if (remaining.length === 0) {
         alert("Tutti i giocatori sono stati estratti!");
         return;
@@ -97,10 +108,8 @@ drawBtn.addEventListener("click", () => {
       const randomIndex = Math.floor(Math.random() * remaining.length);
       const selectedPlayer = remaining[randomIndex];
 
-      if (!selectedPlayer) {
-        alert("Errore: giocatore non trovato!");
-        return;
-      }
+      // 🔹 Controllo aggiuntivo
+      if (!selectedPlayer) return alert("Errore: nessun giocatore disponibile!");
 
       // Aggiorna Firebase
       db.ref("currentPlayer").set({
@@ -109,19 +118,42 @@ drawBtn.addEventListener("click", () => {
         currentLeader: "Nessuno",
         isActive: true
       });
-
       db.ref("drawnPlayers").set([...drawn, selectedPlayer]);
-      db.ref("timer").set({ seconds: 30, isRunning: true });
+      db.ref("timer").set(30); // timer iniziale
     });
   });
 });
 
 // =========================
+// TIMER CLIENT
+// =========================
+db.ref("timer").on("value", snap => {
+  const t = snap.val();
+  if (t === null) return;
+  timerEl.textContent = t;
+
+  clearInterval(timerInterval);
+  if (t > 0) {
+    timerInterval = setInterval(() => {
+      db.ref("timer").once("value").then(snap => {
+        let time = snap.val();
+        if (time > 0) {
+          time--;
+          db.ref("timer").set(time);
+        } else {
+          clearInterval(timerInterval);
+          endAuction();
+        }
+      });
+    }, 1000);
+  }
+});
+
+// =========================
 // RILANCI CAPITANI
 // =========================
-const bidBtn = document.getElementById("bidBtn");
 if (!isHost) {
-  bidBtn.addEventListener("click", () => {
+  document.getElementById("bidBtn").addEventListener("click", () => {
     const val = parseInt(document.getElementById("bidAmount").value);
     if (!isNaN(val)) makeBid(val);
   });
@@ -158,31 +190,41 @@ document.getElementById("resetBtn").addEventListener("click", () => {
   if (!confirm("Sei sicuro di resettare l'asta?")) return;
 
   db.ref("currentPlayer").remove();
-  db.ref("timer").set({ seconds: 30, isRunning: false });
+  db.ref("timer").set(30);
   db.ref("winners").remove();
   db.ref("drawnPlayers").remove();
 
-  // Ripristina array giocatori da JSON
   fetch("players.json")
     .then(res => res.json())
-    .then(data => { allPlayers = data; });
+    .then(data => { allPlayers = data.map(p => p.name || p); });
 
-  document.getElementById("playerDisplay").textContent = "Attesa estrazione giocatore";
-  document.getElementById("currentBid").textContent = 0;
-  document.getElementById("currentLeader").textContent = "Nessuno";
-  document.getElementById("timer").textContent = "--";
+  playerDisplay.textContent = "Attesa estrazione giocatore";
+  currentBidEl.textContent = 0;
+  currentLeaderEl.textContent = "Nessuno";
+  timerEl.textContent = "--";
 });
+
+// =========================
+// FINE ASTA PER GIOCATORE
+// =========================
+function endAuction() {
+  db.ref("currentPlayer").once("value").then(snap => {
+    const data = snap.val();
+    if (!data) return;
+    const team = teamName || data.currentLeader;
+    db.ref(`winners/${team}`).push({
+      playerName: data.name,
+      leader: data.currentLeader,
+      bid: data.currentBid
+    });
+    db.ref("currentPlayer").remove();
+  });
+}
 
 // =========================
 // SINCRONIZZAZIONE REAL-TIME
 // =========================
 function subscribeToAuction() {
-  const playerDisplay = document.getElementById("playerDisplay");
-  const currentBidEl = document.getElementById("currentBid");
-  const currentLeaderEl = document.getElementById("currentLeader");
-  const timerEl = document.getElementById("timer");
-  const winnerTables = document.getElementById("winnerTables");
-
   db.ref("currentPlayer").on("value", snap => {
     const data = snap.val();
     if (data && data.name) {
@@ -196,18 +238,12 @@ function subscribeToAuction() {
     }
   });
 
-  db.ref("timer").on("value", snap => {
-    const data = snap.val();
-    if (data) timerEl.textContent = data.seconds;
-  });
-
   db.ref("winners").on("value", snap => {
     const data = snap.val() || {};
     winnerTables.innerHTML = "";
     for (let team in data) {
       const teamDiv = document.createElement("div");
       teamDiv.className = "team-table";
-
       const title = document.createElement("h4");
       title.textContent = team;
       teamDiv.appendChild(title);
@@ -223,7 +259,6 @@ function subscribeToAuction() {
         tr.innerHTML = `<td>${p.playerName}</td><td>${p.leader}</td><td>${p.bid}</td>`;
         tbody.appendChild(tr);
       });
-
       teamDiv.appendChild(table);
       winnerTables.appendChild(teamDiv);
     }
